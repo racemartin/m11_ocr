@@ -289,12 +289,9 @@ with st.sidebar:
     logo_path = Path(__file__).resolve().parent.parent / 'docs' / 'images' / 'astrodynamics_logo.png'
 
     if logo_path.exists():
-        col1, col2, col3 = st.columns([1, 2, 1])
+        col1, col2, col3 = st.columns([1, 3, 1])
         with col2:
             st.image(str(logo_path), use_container_width=True)
-    
-    if logo_path.exists():
-        st.image(str(logo_path), width=150)
     
     st.markdown(
         "<div style='text-align:center;font-size:1.2em;font-weight:600'>"
@@ -429,17 +426,53 @@ if page == "GUI Épisode":
             st.pyplot(fig_a, use_container_width=True)
             plt.close(fig_a)
 
-        # ── Vidéo inline ──────────────────────────────────────
+        # ── Vidéo de l'épisode — assemblée côté API ───────────
         st.subheader("Vidéo de l'épisode")
-        log.START_CALL_CONTROLLER_FUNCTION("GUI", "video_inline", "assemblage MP4")
-        video_bytes = _assembler_video(frames)
-        if video_bytes:
-            st.video(video_bytes)
-            log.FINISH_CALL_CONTROLLER_FUNCTION("GUI", "video_inline", f"{len(video_bytes):,} bytes")
-        else:
-            st.info("imageio non disponible — installer avec : pip install imageio[ffmpeg]")
-            log.LEVEL_5_WARNING("GUI", "imageio absent — vidéo non générée")
-            log.FINISH_CALL_CONTROLLER_FUNCTION("GUI", "video_inline", "imageio absent")
+        st.caption(
+            "La vidéo est assemblée par l'API à la demande — "
+            "l'animation interactive ci-dessus reste disponible."
+        )
+
+        if st.button("🎬 Générer la vidéo MP4", key="btn_video_ep"):
+            log.START_CALL_CONTROLLER_FUNCTION(
+                "GUI", "get_episode_video", "GET /episode/video"
+            )
+            with st.spinner("Assemblage MP4 en cours…"):
+                try:
+                    r = requests.get(
+                        f"{api_url}/episode/video",
+                        timeout = 60,
+                    )
+                    if r.status_code == 200:
+                        video_bytes = r.content
+                        st.session_state['video_bytes'] = video_bytes
+                        log.PARAMETER_VALUE(
+                            "taille_mp4", f"{len(video_bytes):,} bytes"
+                        )
+                        log.FINISH_CALL_CONTROLLER_FUNCTION(
+                            "GUI", "get_episode_video",
+                            f"{len(video_bytes):,} bytes"
+                        )
+                    else:
+                        detail = r.json().get('detail', r.text)
+                        st.error(f"Erreur API : {detail}")
+                        log.LEVEL_4_ERROR(
+                            "GUI",
+                            f"/episode/video → {r.status_code} : {detail}"
+                        )
+                        log.FINISH_CALL_CONTROLLER_FUNCTION(
+                            "GUI", "get_episode_video", "ERREUR"
+                        )
+                except Exception as e:
+                    st.error(f"Requête échouée : {e}")
+                    log.LEVEL_4_ERROR("GUI", f"get_episode_video échoué : {e}")
+                    log.FINISH_CALL_CONTROLLER_FUNCTION(
+                        "GUI", "get_episode_video", "ERREUR"
+                    )
+
+        # Affichage si vidéo disponible en session_state
+        if 'video_bytes' in st.session_state:
+            st.video(st.session_state['video_bytes'])
 
         log.FINISH_CALL_CONTROLLER_FUNCTION("GUI", "afficher_episode", "rendu complet")
 

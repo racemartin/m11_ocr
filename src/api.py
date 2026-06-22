@@ -9,6 +9,8 @@ import base64                        # encodage frames en base64
 import io                            # flux mémoire pour images
 import json                          # lecture métadonnées JSON
 import sys                           # manipulation du path Python
+import tempfile                      # fichiers temporaires pour MP4
+import os                            # suppression fichiers temporaires
 from pathlib import Path             # chemins portables
 from typing  import List, Optional   # annotations de types
 
@@ -16,6 +18,7 @@ from typing  import List, Optional   # annotations de types
 import uvicorn                       # serveur ASGI
 from fastapi             import FastAPI, HTTPException  # framework API
 from fastapi.middleware.cors import CORSMiddleware      # CORS pour Streamlit
+from fastapi.responses   import Response               # réponse binaire MP4
 from pydantic            import BaseModel              # validation données
 
 # — Calcul vectoriel et image
@@ -185,6 +188,15 @@ class EpisodeRequest(BaseModel):
     render: Optional[bool] = True
 
 # ============================================================
+# État en mémoire — dernier épisode joué (pour /episode/video)
+# ============================================================
+
+# Stocke les frames numpy du dernier épisode pour assemblage MP4
+# Réinitialisé à chaque appel de /episode
+_dernier_episode_frames: list = []   # frames numpy RGB (H, W, 3)
+_dernier_episode_seed:   int  = 0    # seed du dernier épisode
+
+# ============================================================
 # Fonctions utilitaires
 # ============================================================
 
@@ -310,7 +322,9 @@ def jouer_episode(req: EpisodeRequest):
     # ----------------------------------------------------------
     # Collecte
     # ----------------------------------------------------------
+    global _dernier_episode_frames, _dernier_episode_seed
     frames_b64      = []
+    frames_np       = []    # frames numpy conservées pour /episode/video
     rewards_cumules = []
     actions_list    = []
     obs_list        = []
@@ -327,34 +341,38 @@ def jouer_episode(req: EpisodeRequest):
 
         # Capturer la frame AVANT l'action
         if req.render:
-            log.START_CALL_ENTITY_FUNCTION("API", "render", f"frame {n_pas}")
+            # log.START_CALL_ENTITY_FUNCTION("API", "render", f"frame {n_pas}")
             frame = env.render()
             frames_b64.append(_frame_vers_base64(frame))
-            log.FINISH_CALL_ENTITY_FUNCTION(
-                "API", "render", f"frame {n_pas} encodée"
-            )
+            frames_np.append(frame)                        # ← stockage numpy
+            # log.FINISH_CALL_ENTITY_FUNCTION( "API", "render", f"frame {n_pas} encodée" )
 
         # Prédiction déterministe
-        log.START_CALL_ENTITY_FUNCTION("API", "model.predict", f"pas {n_pas}")
+        # log.START_CALL_ENTITY_FUNCTION("API", "model.predict", f"pas {n_pas}")
         action, _                             = model.predict(
                                                   obs, deterministic=True)
         action                                = int(action)
         obs, reward, terminated, truncated, _ = env.step(action)
 
-        log.PARAMETER_VALUE("action",     f"{action} {NOMS_ACTIONS[action]}")
-        log.PARAMETER_VALUE("reward",     round(float(reward), 3))
-        log.PARAMETER_VALUE("terminated", terminated)
-        log.FINISH_CALL_ENTITY_FUNCTION(
-            "API", "model.predict", f"action={action}"
-        )
-
+        # log.PARAMETER_VALUE("action",     f"{action} {NOMS_ACTIONS[action]}")
+        # log.PARAMETER_VALUE("reward",     round(float(reward), 3))
+        # log.PARAMETER_VALUE("terminated", terminated)
+        # log.FINISH_CALL_ENTITY_FUNCTION( "API", "model.predict", f"action={action}" )
+        
         reward_cumule  += float(reward)
         rewards_cumules.append(round(reward_cumule, 3))
         actions_list.append(action)
         obs_list.append([round(float(v), 5) for v in obs])
         n_pas += 1
 
+        # log.PARAMETER_VALUE("action reward", f"{n_pas}: {action} {NOMS_ACTIONS[action]}  reward: {round(float(reward_cumule), 3)}")
+
+
     env.close()
+
+    # Conserver les frames numpy pour /episode/video
+    _dernier_episode_frames = frames_np
+    _dernier_episode_seed   = req.seed or 0
 
     log.FINISH_CALL_MANAGER_FUNCTION(
         "API", "boucle_episode",
@@ -382,6 +400,90 @@ def jouer_episode(req: EpisodeRequest):
         "success"     : reward_cumule >= 200.0,
         "seed"        : req.seed,
     }
+
+
+# ####################################################################
+# GET /episode/video — MP4 du dernier épisode joué
+# ####################################################################
+@app.get("/episode/video")
+def get_episode_video():
+    """
+    Assemble et retourne le MP4 du dernier épisode joué via /episode.
+    Le GUI appelle /episode d'abord (animation interactive),
+    puis /episode/video uniquement si l'utilisateur demande la vidéo.
+    Retourne un fichier MP4 binaire (Response media_type video/mp4).
+    """
+    log.START_ACTION("API", "/episode/video", "assemblage MP4 dernier épisode")
+    _verifier_modele()
+
+    # ----------------------------------------------------------
+    # Vérifier qu'un épisode a été joué avec render=True
+    # ----------------------------------------------------------
+    if not _dernier_episode_frames:
+        log.LEVEL_5_WARNING("API", "aucun épisode avec frames disponible")
+        log.FINISH_ACTION("API", "/episode/video", "aucune frame")
+        raise HTTPException(
+            status_code = 404,
+            detail      = "Aucun épisode joué avec render=True. "
+                          "Appeler /episode avec render:true d'abord."
+        )
+
+    log.PARAMETER_VALUE("n_frames", len(_dernier_episode_frames))
+    log.PARAMETER_VALUE("seed",     _dernier_episode_seed)
+
+    # ----------------------------------------------------------
+    # Assemblage MP4 via imageio-ffmpeg
+    # ----------------------------------------------------------
+    log.START_CALL_MANAGER_FUNCTION("API", "assembler_mp4", "imageio-ffmpeg")
+    try:
+        import imageio_ffmpeg
+
+        with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp:
+            tmp_path = tmp.name
+
+        h, w = _dernier_episode_frames[0].shape[:2]
+        writer = imageio_ffmpeg.write_frames(
+            tmp_path,
+            (w, h),                       # (width, height)
+            fps              = 30,
+            ffmpeg_log_level = "quiet",
+        )
+        writer.send(None)                 # initialiser le générateur
+        for frame in _dernier_episode_frames:
+            writer.send(frame)
+        writer.close()
+
+        with open(tmp_path, 'rb') as f:
+            video_bytes = f.read()
+        os.unlink(tmp_path)
+
+        log.PARAMETER_VALUE("taille_mp4", f"{len(video_bytes):,} bytes")
+        log.FINISH_CALL_MANAGER_FUNCTION(
+            "API", "assembler_mp4", f"{len(video_bytes):,} bytes"
+        )
+
+    except Exception as e:
+        log.LEVEL_4_ERROR("API", f"assemblage MP4 échoué : {e}")
+        log.FINISH_CALL_MANAGER_FUNCTION("API", "assembler_mp4", "ERREUR")
+        raise HTTPException(
+            status_code = 500,
+            detail      = f"Assemblage MP4 échoué : {e}"
+        )
+
+    log.FINISH_ACTION(
+        "API", "/episode/video",
+        f"MP4 {len(video_bytes):,} bytes — seed={_dernier_episode_seed}"
+    )
+
+    # Retourner le MP4 binaire directement
+    return Response(
+        content      = video_bytes,
+        media_type   = "video/mp4",
+        headers      = {
+            "Content-Disposition":
+                f"inline; filename=eagle1_episode_{_dernier_episode_seed}.mp4"
+        }
+    )
 
 
 # ####################################################################
