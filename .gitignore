@@ -1,0 +1,27 @@
+# Environnement virtuel
+.venv/
+
+# Modèles (trop lourds pour GitHub — utiliser Git LFS ou exclure)
+models/*.zip
+models/best_ppo/
+models/best_dqn/
+
+# Logs TensorBoard
+logs/
+
+# Jupyter
+.ipynb_checkpoints/
+__pycache__/
+*.pyc
+*.pyo
+
+# Données
+data/
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Variables d'environnement
+.env
+EOF

@@ -1,0 +1,21 @@
+{
+  "reward_finale": 136.2,
+  "std_reward": 3.7,
+  "taux_succes": 0.0,
+  "TOTAL_TIMESTEPS_SB3": 200000,
+  "TARGET_UPDATE_SB3": 2000,
+  "EXPLORATION_FRAC": 0.2,
+  "BUFFER_SIZE_SB3": 10000,
+  "EPS_START": 1.0,
+  "EPS_END": 0.01,
+  "BATCH_SIZE": 64,
+  "LR": 0.0005,
+  "GAMMA": 0.99,
+  "obs_dim": 4,
+  "n_actions": 2,
+  "equiv_N_EPISODES": 1000,
+  "equiv_EPS_DECAY": 0.995405,
+  "equiv_TARGET_UPDATE": 50,
+  "equiv_MIN_BUFFER": 500,
+  "equiv_BUFFER_SIZE": 10000
+}

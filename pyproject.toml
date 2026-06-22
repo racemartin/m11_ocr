@@ -1,0 +1,56 @@
+[project]
+name = "ssl-medical-benchmark"
+version = "0.1.0"
+description = "Benchmark SSL multi-dataset — classification d'images médicales"
+readme = "README.md"
+requires-python = ">=3.10"
+
+dependencies = [
+    # Deep Learning
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    # ML & Clustering
+    "scikit-learn>=1.3.0",
+    # Data
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    # Images
+    "pillow>=10.0.0",
+    # Visualisation
+    "matplotlib>=3.7.0",
+    "seaborn>=0.12.0",
+    # Notebooks
+    "jupyter>=1.0.0",
+    "ipykernel>=6.25.0",
+    # Utilitaires
+    "pyyaml>=6.0",
+    "tqdm>=4.65.0",
+    "umap-learn>=0.5.12",
+    "torchinfo>=1.8.0",
+    "torchviz>=0.0.3",
+    "medmnist>=3.0.2",
+    "gymnasium[box2d]>=1.3.0",
+    "stable-baselines3[extra]>=2.9.0",
+    "pygame>=2.6.1",
+    "swig>=4.4.1",
+    "tensorboard>=2.20.0",
+    "rich>=15.0.0",
+    "uvicorn[standard]>=0.49.0",
+]
+
+[project.optional-dependencies]
+extras = [
+    # Réduction dimensionnelle UMAP (recommandé)
+    "umap-learn>=0.5.3",
+    # Visualisations interactives
+    "plotly>=5.15.0",
+    # Vision (optionnel — Pillow suffit pour ce projet)
+    "opencv-python-headless>=4.8.0",
+]
+derma = [
+    # Dataset DermaMNIST (études futures)
+    "medmnist>=2.2.3",
+]
+
+[tool.uv]
+dev-dependencies = []
