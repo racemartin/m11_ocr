@@ -1,0 +1,36 @@
+{
+  "projet": "Eagle-1 — AstroDynamics",
+  "auteur": "Cerezo_Rafael",
+  "date": "260623_101350",
+  "fichier_modele": "mission_260623_101350_dqn_lunarlander_226.zip",
+  "environnement": "LunarLander-v3",
+  "observation_space": "Box(8,) float32",
+  "action_space": "Discrete(4)",
+  "algorithme": "DQN",
+  "policy": "MlpPolicy",
+  "total_timesteps": 500000,
+  "hyperparametres": {
+    "learning_rate": 0.001,
+    "buffer_size": 100000,
+    "batch_size": 64,
+    "gamma": 0.99,
+    "target_update_int": 5000,
+    "exploration_frac": 0.25,
+    "exploration_final": 0.05
+  },
+  "resultats": {
+    "mean_reward": 225.66695834612577,
+    "std_reward": 33.38493694359417,
+    "critere_valide": true,
+    "n_eval_episodes": 100
+  },
+  "baseline_aleatoire": {
+    "mean_reward": -193.6,
+    "std_reward": 105.5,
+    "taux_succes": 0.0
+  },
+  "comparaison_dqn": {
+    "mean_reward": 225.66695834612577,
+    "std_reward": 33.38493694359417
+  }
+}

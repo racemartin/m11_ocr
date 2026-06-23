@@ -238,6 +238,8 @@ def _afficher_telemetrie(act, obs_c, rew_c):
         hide_index=True, use_container_width=True, height=240
     )
 
+
+
 @st.fragment
 def _bloque_simulacion(frames, rewards, actions, obs_all, n_steps, vitesse):
     """Fragment isolé — re-exécuté indépendamment du reste de la page."""
@@ -281,18 +283,15 @@ def _bloque_simulacion(frames, rewards, actions, obs_all, n_steps, vitesse):
 # Sidebar — navigation et configuration
 # ============================================================
 log.START_ACTION("GUI", "rendu", "initialisation sidebar")
-
 with st.sidebar:
 
     # ── Logo AstroDynamics ────────────────────────────────
-    # ── Logo AstroDynamics ────────────────────────────────
     logo_path = Path(__file__).resolve().parent.parent / 'docs' / 'images' / 'astrodynamics_logo.png'
-
     if logo_path.exists():
         col1, col2, col3 = st.columns([1, 3, 1])
         with col2:
             st.image(str(logo_path), use_container_width=True)
-    
+
     st.markdown(
         "<div style='text-align:center;font-size:1.2em;font-weight:600'>"
         "🚀 Eagle-1 GUI"
@@ -301,26 +300,17 @@ with st.sidebar:
     )
     st.markdown("---")
 
-    page = st.radio(
-        "Navigation",
-        ["GUI Épisode", "Dashboard", "Modèle"],
-        label_visibility="collapsed",
-    )
-
-    st.markdown("---")
+    # ── URL et connexion API ──────────────────────────────
+    st.markdown("**Service API**")
     api_url = st.text_input("URL de l'API", value=API_URL_DEFAUT)
 
     log.START_CALL_CONTROLLER_FUNCTION("GUI", "health_check", api_url)
     health = _api_get("/health", api_url)
-    if health and health.get("status") == "ok":
+    api_ok = health and health.get("status") == "ok"
+    if api_ok:
         st.success("● API connectée")
         st.caption(f"{health.get('modele', '—')}")
-        score = health.get('mean_reward')
-        if score:
-            st.caption(f"Score moyen : **{score:.1f}** pts")
-        log.PARAMETER_VALUE("api_status",  "ok")
-        log.PARAMETER_VALUE("modele",      health.get('modele'))
-        log.PARAMETER_VALUE("mean_reward", score)
+        log.PARAMETER_VALUE("api_status", "ok")
     else:
         st.error("● API non disponible")
         st.caption("Lancer : uvicorn src.api:app")
@@ -328,10 +318,131 @@ with st.sidebar:
     log.FINISH_CALL_CONTROLLER_FUNCTION("GUI", "health_check", "terminé")
 
     st.markdown("---")
+
+    # ── Sélecteur de modèle ───────────────────────────────
+    # Chargé avant le menu — les pages ne s affichent que si
+    # un modele est sélectionné
+    modele_selectionne = None
+
+    if api_ok:
+        log.START_CALL_CONTROLLER_FUNCTION(
+            "GUI", "models_list", "GET /models/list"
+        )
+        resp_models = _api_get("/models/list", api_url)
+        log.FINISH_CALL_CONTROLLER_FUNCTION(
+            "GUI", "models_list", "terminé"
+        )
+
+        if resp_models and resp_models.get("modeles"):
+            liste_modeles = resp_models["modeles"]
+
+            # Construire les labels du selectbox
+            def _label(m):
+                score = f"+{m['mean_reward']:.1f}" if m['mean_reward'] else "?"
+                ok    = "✓" if m['critere_valide'] else "✗"
+                return f"{m['algorithme']} — {m['id']}  {score} pts  {ok}"
+
+            labels  = [_label(m) for m in liste_modeles]
+            ids     = [m['id']   for m in liste_modeles]
+
+            # Indice du modèle actif par défaut
+            idx_actif = next(
+                (i for i, m in enumerate(liste_modeles) if m['actif']),
+                0
+            )
+
+            # Récupérer la sélection précédente pour détecter un changement
+            ancien_id = st.session_state.get('modele_id_actif')
+
+            st.markdown("**Modèle actif**")
+            choix_idx = st.selectbox(
+                "Sélectionner un modèle",
+                options          = range(len(labels)),
+                format_func     = lambda i: labels[i],
+                index           = idx_actif,
+                key             = "selectbox_modele",
+                label_visibility = "collapsed",
+            )
+            modele_selectionne = liste_modeles[choix_idx]
+            nouvel_id          = ids[choix_idx]
+
+            # Si changement de modèle → charger + reset session_state
+            if nouvel_id != ancien_id:
+                log.START_CALL_CONTROLLER_FUNCTION(
+                    "GUI", "load_modele", f"POST /models/load id={nouvel_id}"
+                )
+                r = _api_post(
+                    "/models/load", {"id": nouvel_id}, api_url
+                )
+                if r and r.get("status") == "ok":
+                    # Reset complet — données du modèle précédent invalides
+                    for k in ['episode_data', 'frame_idx',
+                               'historique', 'video_bytes']:
+                        st.session_state.pop(k, None)
+                    st.session_state['modele_id_actif'] = nouvel_id
+                    log.PARAMETER_VALUE("modele chargé", nouvel_id)
+                    log.FINISH_CALL_CONTROLLER_FUNCTION(
+                        "GUI", "load_modele", "OK — session reset"
+                    )
+                    st.rerun()
+                else:
+                    st.error(f"Impossible de charger {nouvel_id}")
+                    log.LEVEL_4_ERROR(
+                        "GUI", f"load_modele échoué pour {nouvel_id}"
+                    )
+                    log.FINISH_CALL_CONTROLLER_FUNCTION(
+                        "GUI", "load_modele", "ERREUR"
+                    )
+
+            # Afficher score du modèle sélectionné
+            m = modele_selectionne
+            if m['mean_reward']:
+                badge = "🟢" if m['critere_valide'] else "🔴"
+                st.caption(
+                    f"{badge} {m['algorithme']}  "
+                    f"**{m['mean_reward']:+.1f} pts**"
+                )
+        else:
+            st.warning("Aucun modèle disponible")
+            st.caption("Entraîner un agent d abord (notebook)")
+
+    st.markdown("---")
+    st.markdown("**Menu**")
+
+    # ── Navigation — désactivée si pas de modèle ─────────
+    # pages_disponibles = ["GUI Épisode", "Dashboard", "Modèle", "🕹️ Interactif"]
+    pages_disponibles = ["GUI Épisode", "Dashboard", "Modèle"]
+
+    if modele_selectionne is None:
+        # Aucun modèle — menu grisé
+        st.markdown(
+            "<div style='color:#888;font-size:13px'>"
+            "Sélectionner un modèle pour accéder aux pages."
+            "</div>",
+            unsafe_allow_html=True
+        )
+        page = None
+    else:
+        page = st.radio(
+            "Navigation",
+            pages_disponibles,
+            label_visibility="collapsed",
+        )
+
+    st.markdown("---")
     st.caption("AstroDynamics · Eagle-1")
+    st.caption("Rafael CEREZO MARTIN")
 
 log.FINISH_ACTION("GUI", "rendu", f"page={page}")
 
+
+# ============================================================
+# Garde — aucun modèle sélectionné
+# ============================================================
+if modele_selectionne is None:
+    if not api_ok:
+        st.info("🔌 API non disponible — lancer uvicorn src.api:app")
+    # Pas de st.stop() ici — la page Épisode gère la sélection
 
 # ============================================================
 # PAGE : ÉPISODE
@@ -339,6 +450,112 @@ log.FINISH_ACTION("GUI", "rendu", f"page={page}")
 if page == "GUI Épisode":
 
     log.START_ACTION("GUI", "page_episode", "rendu page épisode")
+
+    # ***************************************************************
+    # SÉLECTION DU MODÈLE — avant tout affichage de la page
+    # Liste tous les modèles disponibles via /models/list
+    # Une fois sélectionné et chargé, le reste de la page s'affiche
+    # ***************************************************************
+
+    # ── Récupérer la liste des modèles disponibles ────────────────
+    modele_id_courant = st.session_state.get('modele_id_actif')
+
+    log.START_CALL_CONTROLLER_FUNCTION(
+        "GUI", "models_list_episode", "GET /models/list"
+    )
+    resp_models = _api_get("/models/list", api_url)
+    log.FINISH_CALL_CONTROLLER_FUNCTION(
+        "GUI", "models_list_episode", "terminé"
+    )
+
+    if not api_ok:
+        st.error("🔌 API non disponible — lancer uvicorn src.api:app")
+        st.stop()
+
+    liste_modeles = (resp_models or {}).get("modeles", [])
+
+    if not liste_modeles:
+        # ── Aucun modèle disponible ───────────────────────────────
+        st.warning(
+            "🤖 Aucun modèle disponible dans `models/`.  "
+            "Entraîner un agent PPO ou DQN dans le notebook."
+        )
+        st.stop()
+
+    # ── Bouton "Sélectionner un modèle" — affiche la liste ────────
+    if not modele_id_courant:
+        st.info("Sélectionner un modèle pour commencer.")
+        if st.button("🤖 Sélectionner un modèle", type="primary",
+                     key="btn_ouvrir_liste"):
+            st.session_state['liste_ouverte'] = True
+            st.rerun()
+
+    # ── Liste des modèles — affichée après clic ───────────────────
+    if not modele_id_courant or st.session_state.get('liste_ouverte'):
+
+        st.markdown("### Modèles disponibles")
+        st.caption("Cliquer sur un modèle pour le charger et démarrer.")
+
+        # ── Une ligne par modèle ──────────────────────────────────
+        for m in liste_modeles:
+            score_txt = f"{m['mean_reward']:+.1f} pts" if m['mean_reward'] else "? pts"
+            badge     = "🟢" if m['critere_valide'] else "🔴"
+            actif_txt = " ✦ actif" if m['actif'] else ""
+            label_btn = (
+                f"{badge}  {m['algorithme']}  ·  {m['id']}"
+                f"  ·  {score_txt}{actif_txt}"
+            )
+            if st.button(label_btn, key=f"btn_modele_{m['id']}",
+                         use_container_width=True):
+                # ── Charger le modèle sélectionné ─────────────────
+                log.START_CALL_CONTROLLER_FUNCTION(
+                    "GUI", "load_modele",
+                    f"POST /models/load id={m['id']}"
+                )
+                r = _api_post("/models/load", {"id": m['id']}, api_url)
+                if r and r.get("status") == "ok":
+                    for k in ['episode_data', 'frame_idx',
+                               'historique', 'video_bytes']:
+                        st.session_state.pop(k, None)
+                    st.session_state['modele_id_actif'] = m['id']
+                    st.session_state['liste_ouverte']   = False
+                    log.PARAMETER_VALUE("modele chargé", m['id'])
+                    log.FINISH_CALL_CONTROLLER_FUNCTION(
+                        "GUI", "load_modele", "OK"
+                    )
+                    st.rerun()
+                else:
+                    st.error(f"Impossible de charger {m['id']}")
+                    log.LEVEL_4_ERROR(
+                        "GUI", f"load_modele échoué pour {m['id']}"
+                    )
+
+        # ── Arrêter ici si pas encore de modèle chargé ───────────
+        if not modele_id_courant:
+            st.stop()
+
+    # ── Modèle actif — affichage compact + bouton changer ─────────
+    # ---------------------------------------------------------------
+    health_r  = _api_get("/health", api_url) or {}
+    score_act = health_r.get('mean_reward')
+    algo_act  = health_r.get('algorithme', '?')
+    critere   = health_r.get('critere_valide', False)
+    badge_act = "🟢" if critere else "🔴"
+
+    col_modele, col_changer = st.columns([5, 1])
+    with col_modele:
+        st.markdown(
+            f"{badge_act} **Modèle actif :** `{modele_id_courant}`  "
+            f"· {algo_act}"
+            + (f" · **{score_act:+.1f} pts**" if score_act else ""),
+        )
+    with col_changer:
+        if st.button("⇄ Changer", key="btn_changer_modele"):
+            st.session_state['liste_ouverte'] = True
+            st.rerun()
+
+    # ---------------------------------------------------------------
+
     st.title("Visualisation d'épisode")
 
     # ----------------------------------------------------------
@@ -822,3 +1039,298 @@ elif page == "Modèle":
     plt.close(fig_c)
 
     log.FINISH_ACTION("GUI", "page_modele", "rendu terminé")
+
+
+# ============================================================
+# PAGE : INTERACTIF — Human vs Agent (physique réelle)
+# ============================================================
+# -----------------------------------------------------------
+elif page == "🕹️ Interactif":
+
+    log.START_ACTION("GUI", "page_interactif", "rendu page interactive")
+    st.title("🕹️ Mode interactif — Human vs Agent")
+    st.caption(
+        "Le lander tombe automatiquement sous l'effet de la gravité. "
+        "Cliquez sur un bouton d'action avant le prochain pas "
+        "pour intervenir — sinon do nothing est appliqué automatiquement."
+    )
+
+    # ***************************************************************
+    # CONTRÔLES PRINCIPAUX — vitesse, seed, démarrer
+    # ***************************************************************
+    col_c1, col_c2, col_c3, col_c4 = st.columns([2, 1, 1, 1])
+    with col_c1:
+        intervalle = st.slider(
+            "Intervalle (s) — temps pour choisir",
+            min_value = 0.3,
+            max_value = 3.0,
+            value     = 0.8,
+            step      = 0.1,
+            key       = "slider_intervalle_interactif",
+            help      = "Temps avant envoi automatique de do nothing"
+        )
+    with col_c2:
+        seed_interactif = st.number_input(
+            "Seed", value=42, step=1, key="seed_interactif"
+        )
+    with col_c3:
+        btn_start_i = st.button(
+            "▶ Démarrer",
+            type                = "primary",
+            key                 = "btn_start_interactif",
+            use_container_width = True,
+        )
+    with col_c4:
+        btn_reset_i = st.button(
+            "↺ Reset",
+            key                 = "btn_reset_interactif",
+            use_container_width = True,
+        )
+
+    # ---------------------------------------------------------------
+    # Démarrer / réinitialiser un épisode
+    # ---------------------------------------------------------------
+    if btn_start_i or btn_reset_i:
+        log.START_CALL_CONTROLLER_FUNCTION(
+            "GUI", "interactif_start",
+            f"POST /interactif/start seed={seed_interactif}"
+        )
+        r = _api_post(
+            "/interactif/start",
+            {"seed": int(seed_interactif), "render": True},
+            api_url
+        )
+        if r:
+            st.session_state["int_obs"]        = r["obs"]
+            st.session_state["int_frame"]      = r["frame_b64"]
+            st.session_state["int_reward"]     = 0.0
+            st.session_state["int_n_pas"]      = 0
+            st.session_state["int_done"]       = False
+            st.session_state["int_historique"] = []
+            st.session_state["int_actif"]      = True
+            log.PARAMETER_VALUE("seed", seed_interactif)
+            log.FINISH_CALL_CONTROLLER_FUNCTION(
+                "GUI", "interactif_start", "OK"
+            )
+            st.rerun()
+        else:
+            st.error("Impossible de démarrer — API non disponible.")
+            log.LEVEL_4_ERROR("GUI", "interactif_start échoué")
+
+    # ---------------------------------------------------------------
+    # Attente de démarrage
+    # ---------------------------------------------------------------
+    if "int_frame" not in st.session_state:
+        st.info("Cliquer sur **▶ Démarrer** pour lancer l'épisode.")
+        log.FINISH_ACTION("GUI", "page_interactif", "en attente")
+        st.stop()
+
+    # ---------------------------------------------------------------
+    # Épisode terminé — résultat final
+    # ---------------------------------------------------------------
+    if st.session_state.get("int_done", False):
+        reward_fin = st.session_state["int_reward"]
+        n_pas_fin  = st.session_state["int_n_pas"]
+        historique = st.session_state.get("int_historique", [])
+
+        if reward_fin >= 200:
+            st.success(
+                f"🏆 Atterrissage réussi !  "
+                f"Score : **{reward_fin:+.1f} pts** — {n_pas_fin} pas"
+            )
+        else:
+            st.warning(
+                f"💥 Épisode terminé.  "
+                f"Score : **{reward_fin:+.1f} pts** — {n_pas_fin} pas"
+            )
+
+        if len(historique) > 1:
+            fig_fin, ax_fin = plt.subplots(figsize=(9, 2.5))
+            fig_fin.patch.set_facecolor("none")
+            ax_fin.set_facecolor("none")
+            ax_fin.plot(
+                [h["reward_cum"] for h in historique],
+                color="#EF9F27", linewidth=1.5, label="Votre score"
+            )
+            ax_fin.axhline(200, color="#1D9E75",
+                           linewidth=1, linestyle="--", label="seuil 200")
+            ax_fin.set_xlabel("pas", fontsize=8, color="white")
+            ax_fin.set_ylabel("récompense cumulée",
+                              fontsize=8, color="white")
+            ax_fin.tick_params(colors="white", labelsize=7)
+            ax_fin.legend(fontsize=7, facecolor="#222",
+                          labelcolor="white")
+            for sp in ax_fin.spines.values():
+                sp.set_edgecolor("#444")
+            plt.tight_layout()
+            st.pyplot(fig_fin, use_container_width=True)
+            plt.close(fig_fin)
+
+        log.FINISH_ACTION("GUI", "page_interactif", "épisode terminé")
+        st.stop()
+
+    # ---------------------------------------------------------------
+    # Boutons d'action — HORS du fragment
+    # Exécutent le step IMMÉDIATEMENT au clic sans attendre
+    # le prochain cycle automatique du fragment
+    # ---------------------------------------------------------------
+    n_pas_courant = st.session_state.get("int_n_pas", 0)
+
+    st.markdown("---")
+    st.caption(
+        f"⏱ Vous avez **{intervalle:.1f}s** pour choisir — "
+        f"sinon **do nothing** est appliqué automatiquement."
+    )
+
+    LABELS_BTN = {
+        1: "◀  Moteur gauche",
+        2: "▲  Moteur principal",
+        3: "▶  Moteur droit",
+    }
+    cols_btn = st.columns(3)
+    for col_b, (a_id, a_label) in zip(cols_btn, LABELS_BTN.items()):
+        with col_b:
+            if st.button(
+                a_label,
+                key                 = f"btn_i_{n_pas_courant}_{a_id}",
+                use_container_width = True,
+            ):
+                # ── Step immédiat — physique réelle ───────────
+                log.START_CALL_CONTROLLER_FUNCTION(
+                    "GUI", "action_joueur",
+                    f"action={a_id} {NOMS_ACTIONS[a_id]} [JOUEUR]"
+                )
+                r = _api_post(
+                    "/interactif/step",
+                    {"action": a_id},
+                    api_url
+                )
+                if r:
+                    st.session_state["int_obs"]      = r["obs"]
+                    st.session_state["int_frame"]    = r["frame_b64"]
+                    st.session_state["int_reward"]   = r["reward_cum"]
+                    st.session_state["int_n_pas"]    = r["n_pas"]
+                    st.session_state["int_done"]     = r["done"]
+                    st.session_state["int_historique"].append({
+                        "n_pas"     : r["n_pas"],
+                        "action"    : a_id,
+                        "reward"    : r["reward"],
+                        "reward_cum": r["reward_cum"],
+                    })
+                    log.PARAMETER_VALUE(
+                        "action",
+                        f"{a_id} {NOMS_ACTIONS[a_id]} [JOUEUR]"
+                    )
+                    log.PARAMETER_VALUE("reward",     r["reward"])
+                    log.PARAMETER_VALUE("reward_cum", r["reward_cum"])
+                    log.FINISH_CALL_CONTROLLER_FUNCTION(
+                        "GUI", "action_joueur", f"done={r['done']}"
+                    )
+                    st.rerun()
+
+    # ***************************************************************
+    # FRAGMENT — boucle do nothing automatique
+    # Re-exécuté toutes les `intervalle` secondes.
+    # N'envoie QUE do nothing — les boutons joueur sont hors fragment
+    # et ont déjà exécuté leur step avant que le fragment tourne.
+    # ***************************************************************
+    @st.fragment(run_every=intervalle)
+    def _boucle_interactif():
+        """
+        Fragment auto-rafraîchi — envoie do nothing automatiquement
+        si le joueur n'a pas cliqué pendant l'intervalle.
+        Affiche la frame et la télémétrie courantes.
+        """
+        frame_b64  = st.session_state.get("int_frame",  "")
+        obs_c      = st.session_state.get("int_obs",    [0]*8)
+        reward_cum = st.session_state.get("int_reward", 0.0)
+        n_pas      = st.session_state.get("int_n_pas",  0)
+        done       = st.session_state.get("int_done",   False)
+        historique = st.session_state.get("int_historique", [])
+
+        if done or not st.session_state.get("int_actif", False):
+            st.rerun()
+            return
+
+        # ── Envoyer do nothing — physique réelle ──────────────────
+        log.START_CALL_MANAGER_FUNCTION(
+            "GUI", "boucle_auto",
+            f"pas={n_pas} action=0 [auto]"
+        )
+        r = _api_post(
+            "/interactif/step",
+            {"action": 0},
+            api_url
+        )
+        if r:
+            st.session_state["int_obs"]      = r["obs"]
+            st.session_state["int_frame"]    = r["frame_b64"]
+            st.session_state["int_reward"]   = r["reward_cum"]
+            st.session_state["int_n_pas"]    = r["n_pas"]
+            st.session_state["int_done"]     = r["done"]
+            st.session_state["int_historique"].append({
+                "n_pas"     : r["n_pas"],
+                "action"    : 0,
+                "reward"    : r["reward"],
+                "reward_cum": r["reward_cum"],
+            })
+            frame_b64  = r["frame_b64"]
+            obs_c      = r["obs"]
+            reward_cum = r["reward_cum"]
+            n_pas      = r["n_pas"]
+            done       = r["done"]
+            historique = st.session_state["int_historique"]
+
+        log.FINISH_CALL_MANAGER_FUNCTION(
+            "GUI", "boucle_auto",
+            f"pas={n_pas} done={done}"
+        )
+
+        if done:
+            st.rerun()
+            return
+
+        # ── Affichage frame + télémétrie ──────────────────────────
+        col_f, col_t = st.columns([3, 2])
+
+        with col_f:
+            st.image(_decoder_frame(frame_b64), width="stretch")
+            st.progress(
+                n_pas / 1000,
+                text=f"Pas {n_pas} / 1000  |  {reward_cum:+.1f} pts"
+            )
+
+        with col_t:
+            st.metric("Récompense cumulée", f"{reward_cum:+.2f}")
+            st.dataframe(
+                pd.DataFrame({
+                    "Variable": NOMS_OBS,
+                    "Valeur"  : [f"{v:+.5f}" for v in obs_c],
+                }),
+                hide_index          = True,
+                use_container_width = True,
+                height              = 250,
+            )
+
+        # ── Mini-courbe ───────────────────────────────────────────
+        if len(historique) > 2:
+            fig_p, ax_p = plt.subplots(figsize=(8, 1.5))
+            fig_p.patch.set_facecolor("none")
+            ax_p.set_facecolor("none")
+            ax_p.plot(
+                [h["reward_cum"] for h in historique],
+                color="#EF9F27", linewidth=1.2
+            )
+            ax_p.axhline(200, color="#1D9E75",
+                         linewidth=0.8, linestyle="--")
+            ax_p.tick_params(colors="white", labelsize=6)
+            for sp in ax_p.spines.values():
+                sp.set_edgecolor("#444")
+            plt.tight_layout()
+            st.pyplot(fig_p, use_container_width=True)
+            plt.close(fig_p)
+
+    # ── Appel du fragment ──────────────────────────────────────────
+    _boucle_interactif()
+
+    log.FINISH_ACTION("GUI", "page_interactif", "rendu terminé")

@@ -29,6 +29,8 @@ from PIL                 import Image  # conversion frame numpy → PNG
 import gymnasium         as gym      # API Gymnasium 1.3+
 from stable_baselines3   import PPO, DQN  # algorithmes SB3
 
+import imageio_ffmpeg
+
 # — Outil de journalisation
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from tools.rafael.log_tool import LogTool  # journalisation colorée RFC 5424
@@ -137,6 +139,9 @@ def _trouver_meilleur_modele():
     )
     return None, None, None
 
+# *****************************************************************************
+def ____START(): pass
+# *****************************************************************************
 
 log.START_ACTION("API", "startup", "chargement du modèle au démarrage")
 
@@ -144,20 +149,31 @@ chemin_modele, algo, chemin_json = _trouver_meilleur_modele()
 
 if chemin_modele is None:
     log.LEVEL_5_WARNING("API", "API en mode dégradé — aucun modèle disponible")
-    model    = None
-    metadata = {}
+    _model_init    = None
+    _metadata_init = {}
 else:
     log.STEP(2, "Chargement modèle SB3")
     log.PARAMETER_VALUE("chemin",     str(chemin_modele))
     log.PARAMETER_VALUE("algorithme", algo)
-    model    = (PPO if algo == 'PPO' else DQN).load(str(chemin_modele))
-    metadata = {}
+    _model_init    = (PPO if algo == 'PPO' else DQN).load(str(chemin_modele))
+    _metadata_init = {}
     if chemin_json and chemin_json.exists():
         with open(chemin_json, encoding='utf-8') as f:
-            metadata = json.load(f)
+            _metadata_init = json.load(f)
         log.PARAMETER_VALUE("metadata JSON", chemin_json.name)
 
 log.FINISH_ACTION("API", "startup", f"modèle {algo} prêt")
+
+# ============================================================
+# État global mutable du modèle actif
+# Modifié par POST /models/load — partagé entre tous les endpoints
+# ============================================================
+_etat = {
+    "model"         : _model_init,     # instance SB3 chargée
+    "algo"          : algo,            # "PPO" ou "DQN"
+    "chemin_modele" : chemin_modele,   # Path du .zip actif
+    "metadata"      : _metadata_init,  # dict JSON des métadonnées
+}
 
 # ============================================================
 # Application FastAPI
@@ -176,6 +192,10 @@ app.add_middleware(
     allow_headers  = ["*"],
 )
 
+# *****************************************************************************
+def ____CLASSES(): pass
+# *****************************************************************************
+
 # ============================================================
 # Modèles Pydantic
 # ============================================================
@@ -187,6 +207,14 @@ class EpisodeRequest(BaseModel):
     seed:   Optional[int]  = 42
     render: Optional[bool] = True
 
+class LoadRequest(BaseModel):
+    """Identifiant du modèle à charger (id retourné par /models/list)."""
+    id: str                              # ex: "best_ppo", "best_dqn"
+
+class StepRequest(BaseModel):
+    """Action choisie par le joueur (0–3) pour un pas."""
+    action: int               # action du joueur : 0 1 2 3
+
 # ============================================================
 # État en mémoire — dernier épisode joué (pour /episode/video)
 # ============================================================
@@ -195,6 +223,10 @@ class EpisodeRequest(BaseModel):
 # Réinitialisé à chaque appel de /episode
 _dernier_episode_frames: list = []   # frames numpy RGB (H, W, 3)
 _dernier_episode_seed:   int  = 0    # seed du dernier épisode
+
+# *****************************************************************************
+def ____FUNCTIONS(): pass
+# *****************************************************************************
 
 # ============================================================
 # Fonctions utilitaires
@@ -210,7 +242,7 @@ def _frame_vers_base64(frame: np.ndarray) -> str:
 
 def _verifier_modele():
     """Lève une erreur HTTP 503 si le modèle n'est pas chargé."""
-    if model is None:
+    if _etat["model"] is None:
         log.LEVEL_4_ERROR("API", "modèle non disponible — requête rejetée")
         raise HTTPException(
             status_code = 503,
@@ -221,6 +253,7 @@ def _verifier_modele():
 # Endpoints
 # ============================================================
 
+def ___HEALTH(): pass
 # ####################################################################
 # GET /health
 # ####################################################################
@@ -230,12 +263,12 @@ def health():
     log.START_ACTION("API", "/health", "vérification état du service")
 
     resultat = {
-        "status"        : "ok" if model is not None else "degraded",
-        "modele"        : str(chemin_modele.name) if chemin_modele else None,
-        "algorithme"    : algo,
-        "mean_reward"   : metadata.get('resultats', {}).get('mean_reward'),
-        "critere_valide": metadata.get('resultats', {}).get('critere_valide'),
-        "environnement" : metadata.get('environnement', 'LunarLander-v3'),
+        "status"        : "ok" if _etat["model"] is not None else "degraded",
+        "modele"        : str(_etat["chemin_modele"].name) if _etat["chemin_modele"] else None,
+        "algorithme"    : _etat["algo"],
+        "mean_reward"   : _etat["metadata"].get('resultats', {}).get('mean_reward'),
+        "critere_valide": _etat["metadata"].get('resultats', {}).get('critere_valide'),
+        "environnement" : _etat["metadata"].get('environnement', 'LunarLander-v3'),
     }
 
     log.PARAMETER_VALUE("status",      resultat["status"])
@@ -246,6 +279,7 @@ def health():
     return resultat
 
 
+def ___ACTION(): pass
 # ####################################################################
 # POST /action
 # ####################################################################
@@ -275,7 +309,7 @@ def predict_action(req: EtatRequest):
 
     log.START_CALL_MANAGER_FUNCTION("API", "model.predict", "inférence réseau")
     obs       = np.array(req.state, dtype=np.float32)
-    action, _ = model.predict(obs, deterministic=True)
+    action, _ = _etat["model"].predict(obs, deterministic=True)
     action    = int(action)
     log.PARAMETER_VALUE("action",      action)
     log.PARAMETER_VALUE("action_name", NOMS_ACTIONS.get(action))
@@ -291,6 +325,7 @@ def predict_action(req: EtatRequest):
     }
 
 
+def ___EPISODE(): pass
 # ####################################################################
 # POST /episode
 # ####################################################################
@@ -341,32 +376,33 @@ def jouer_episode(req: EpisodeRequest):
 
         # Capturer la frame AVANT l'action
         if req.render:
-            # log.START_CALL_ENTITY_FUNCTION("API", "render", f"frame {n_pas}")
+            log.START_CALL_ENTITY_FUNCTION("API", "render", f"frame {n_pas}")
             frame = env.render()
             frames_b64.append(_frame_vers_base64(frame))
             frames_np.append(frame)                        # ← stockage numpy
-            # log.FINISH_CALL_ENTITY_FUNCTION( "API", "render", f"frame {n_pas} encodée" )
+            log.FINISH_CALL_ENTITY_FUNCTION(
+                "API", "render", f"frame {n_pas} encodée"
+            )
 
         # Prédiction déterministe
-        # log.START_CALL_ENTITY_FUNCTION("API", "model.predict", f"pas {n_pas}")
-        action, _                             = model.predict(
+        log.START_CALL_ENTITY_FUNCTION("API", "model.predict", f"pas {n_pas}")
+        action, _                             = _etat["model"].predict(
                                                   obs, deterministic=True)
         action                                = int(action)
         obs, reward, terminated, truncated, _ = env.step(action)
 
-        # log.PARAMETER_VALUE("action",     f"{action} {NOMS_ACTIONS[action]}")
-        # log.PARAMETER_VALUE("reward",     round(float(reward), 3))
-        # log.PARAMETER_VALUE("terminated", terminated)
-        # log.FINISH_CALL_ENTITY_FUNCTION( "API", "model.predict", f"action={action}" )
-        
+        log.PARAMETER_VALUE("action",     f"{action} {NOMS_ACTIONS[action]}")
+        log.PARAMETER_VALUE("reward",     round(float(reward), 3))
+        log.PARAMETER_VALUE("terminated", terminated)
+        log.FINISH_CALL_ENTITY_FUNCTION(
+            "API", "model.predict", f"action={action}"
+        )
+
         reward_cumule  += float(reward)
         rewards_cumules.append(round(reward_cumule, 3))
         actions_list.append(action)
         obs_list.append([round(float(v), 5) for v in obs])
         n_pas += 1
-
-        # log.PARAMETER_VALUE("action reward", f"{n_pas}: {action} {NOMS_ACTIONS[action]}  reward: {round(float(reward_cumule), 3)}")
-
 
     env.close()
 
@@ -402,6 +438,177 @@ def jouer_episode(req: EpisodeRequest):
     }
 
 
+def ___MODELS_LIST(): pass
+# ####################################################################
+# GET /models/list — liste des modeles disponibles
+# ####################################################################
+@app.get("/models/list")
+def models_list():
+    """
+    Inventaire de tous les modeles disponibles dans models/.
+    Retourne la liste avec leurs metadonnees pour le selecteur du GUI.
+    """
+    log.START_ACTION("API", "/models/list", "inventaire modeles")
+
+    modeles = []
+
+    # ----------------------------------------------------------
+    # Fonction interne — lire le JSON d un modele
+    # ----------------------------------------------------------
+    def _lire_meta(chemin_zip, id_modele, algo_defaut):
+        chemin_json  = chemin_zip.with_suffix('.json')
+        mean_reward  = None
+        critere      = False
+        algo_lu      = algo_defaut
+        if chemin_json.exists():
+            try:
+                with open(chemin_json, encoding='utf-8') as fj:
+                    meta    = json.load(fj)
+                mean_reward = meta.get('resultats', {}).get('mean_reward')
+                critere     = meta.get('resultats', {}).get('critere_valide', False)
+                algo_lu     = meta.get('algorithme', algo_defaut)
+            except Exception:
+                pass
+        return {
+            "id"            : id_modele,
+            "chemin"        : str(chemin_zip.relative_to(MODELS)),
+            "algorithme"    : algo_lu,
+            "mean_reward"   : mean_reward,
+            "critere_valide": critere,
+            "actif"         : (
+                _etat["chemin_modele"] is not None and
+                chemin_zip.resolve() == _etat["chemin_modele"].resolve()
+            ),
+        }
+
+    # ----------------------------------------------------------
+    # Scanner les modeles connus
+    # ----------------------------------------------------------
+    log.START_CALL_CONTROLLER_FUNCTION(
+        "API", "models_list", "scan MODELS/"
+    )
+
+    # best_ppo
+    c = MODELS / 'best_ppo' / 'best_model.zip'
+    if c.exists():
+        modeles.append(_lire_meta(c, "best_ppo", "PPO"))
+        log.PARAMETER_VALUE("best_ppo", modeles[-1]['mean_reward'])
+
+    # best_dqn
+    c = MODELS / 'best_dqn' / 'best_model.zip'
+    if c.exists():
+        modeles.append(_lire_meta(c, "best_dqn", "DQN"))
+        log.PARAMETER_VALUE("best_dqn", modeles[-1]['mean_reward'])
+
+    # ppo_lunarlander_*.zip
+    for z in sorted(MODELS.glob('*ppo_lunarlander_*.zip'), reverse=True):
+        modeles.append(_lire_meta(z, z.stem, "PPO"))
+        log.PARAMETER_VALUE(f"ppo {z.stem}", modeles[-1]['mean_reward'])
+
+    # dqn_lunarlander_*.zip
+    for z in sorted(MODELS.glob('*dqn_lunarlander_*.zip'), reverse=True):
+        modeles.append(_lire_meta(z, z.stem, "DQN"))
+        log.PARAMETER_VALUE(f"dqn {z.stem}", modeles[-1]['mean_reward'])
+
+    log.PARAMETER_VALUE("total modeles", len(modeles))
+    log.FINISH_CALL_CONTROLLER_FUNCTION(
+        "API", "models_list", f"{len(modeles)} modeles"
+    )
+    log.FINISH_ACTION("API", "/models/list", f"{len(modeles)} modeles trouves")
+
+    return {"modeles": modeles}
+
+
+def ___MODELS_LOAD(): pass
+# ####################################################################
+# POST /models/load — charger un modele par son id
+# ####################################################################
+@app.post("/models/load")
+def models_load(req: LoadRequest):
+    """
+    Charge un modele en memoire par son id (retourne par /models/list).
+    Remplace le modele actif sans redemarrer l API.
+    """
+    log.START_ACTION("API", "/models/load", f"id={req.id}")
+
+    # ----------------------------------------------------------
+    # Resoudre le chemin depuis l id
+    # ----------------------------------------------------------
+    log.START_CALL_CONTROLLER_FUNCTION(
+        "API", "models_load", f"resolution id={req.id}"
+    )
+
+    if req.id == "best_ppo":
+        chemin = MODELS / 'best_ppo' / 'best_model.zip'
+        algo_c = 'PPO'
+    elif req.id == "best_dqn":
+        chemin = MODELS / 'best_dqn' / 'best_model.zip'
+        algo_c = 'DQN'
+    else:
+        candidats = list(MODELS.glob(f'{req.id}.zip'))
+        if not candidats:
+            log.LEVEL_4_ERROR("API", f"modele introuvable : {req.id}")
+            raise HTTPException(
+                status_code = 404,
+                detail      = f"Modele '{req.id}' introuvable dans models/"
+            )
+        chemin = candidats[0]
+        algo_c = 'DQN' if 'dqn' in req.id.lower() else 'PPO'
+
+    if not chemin.exists():
+        log.LEVEL_4_ERROR("API", f"fichier absent : {chemin}")
+        raise HTTPException(
+            status_code = 404,
+            detail      = f"Fichier {chemin} introuvable"
+        )
+
+    log.PARAMETER_VALUE("chemin", str(chemin))
+    log.PARAMETER_VALUE("algo",   algo_c)
+    log.FINISH_CALL_CONTROLLER_FUNCTION(
+        "API", "models_load", "chemin resolu"
+    )
+
+    # ----------------------------------------------------------
+    # Charger le modele SB3 en memoire
+    # ----------------------------------------------------------
+    log.START_CALL_MANAGER_FUNCTION(
+        "API", "SB3.load", f"{algo_c}.load({chemin.name})"
+    )
+    nouveau_model = (PPO if algo_c == 'PPO' else DQN).load(str(chemin))
+    log.FINISH_CALL_MANAGER_FUNCTION("API", "SB3.load", "modele charge")
+
+    # ----------------------------------------------------------
+    # Lire les metadonnees JSON
+    # ----------------------------------------------------------
+    chemin_json  = chemin.with_suffix('.json')
+    nouveau_meta = {}
+    if chemin_json.exists():
+        with open(chemin_json, encoding='utf-8') as fj:
+            nouveau_meta = json.load(fj)
+        log.PARAMETER_VALUE("metadata JSON", chemin_json.name)
+
+    # ----------------------------------------------------------
+    # Mettre a jour l etat global
+    # ----------------------------------------------------------
+    _etat["model"]         = nouveau_model
+    _etat["algo"]          = algo_c
+    _etat["chemin_modele"] = chemin
+    _etat["metadata"]      = nouveau_meta
+
+    log.PARAMETER_VALUE("modele actif", chemin.name)
+    log.PARAMETER_VALUE("algorithme",   algo_c)
+    log.FINISH_ACTION("API", "/models/load", f"{algo_c} {chemin.name} charge")
+
+    return {
+        "status"     : "ok",
+        "id"         : req.id,
+        "modele"     : chemin.name,
+        "algorithme" : algo_c,
+        "mean_reward": nouveau_meta.get('resultats', {}).get('mean_reward'),
+    }
+
+
+def ___EPISODE_VIDEO(): pass
 # ####################################################################
 # GET /episode/video — MP4 du dernier épisode joué
 # ####################################################################
@@ -436,7 +643,6 @@ def get_episode_video():
     # ----------------------------------------------------------
     log.START_CALL_MANAGER_FUNCTION("API", "assembler_mp4", "imageio-ffmpeg")
     try:
-        import imageio_ffmpeg
 
         with tempfile.NamedTemporaryFile(suffix='.mp4', delete=False) as tmp:
             tmp_path = tmp.name
@@ -485,7 +691,8 @@ def get_episode_video():
         }
     )
 
-
+def ___MODEL_INFO): pass
+    
 # ####################################################################
 # GET /model/info
 # ####################################################################
@@ -495,22 +702,211 @@ def model_info():
     log.START_ACTION("API", "/model/info", "lecture métadonnées")
     _verifier_modele()
 
-    if not metadata:
+    if not _etat["metadata"]:
         log.LEVEL_5_WARNING("API", "pas de fichier JSON de métadonnées")
         log.FINISH_ACTION("API", "/model/info", "sans metadata")
         return {
             "message"   : "Pas de métadonnées JSON disponibles",
-            "modele"    : str(chemin_modele.name),
-            "algorithme": algo,
+            "modele"    : str(_etat["chemin_modele"].name),
+            "algorithme": _etat["algo"],
         }
 
-    log.PARAMETER_VALUE("projet",     metadata.get('projet'))
-    log.PARAMETER_VALUE("algorithme", metadata.get('algorithme'))
+    log.PARAMETER_VALUE("projet",     _etat["metadata"].get('projet'))
+    log.PARAMETER_VALUE("algorithme", _etat["metadata"].get('algorithme'))
     log.PARAMETER_VALUE("mean_reward",
-        metadata.get('resultats', {}).get('mean_reward'))
+        _etat["metadata"].get('resultats', {}).get('mean_reward'))
     log.FINISH_ACTION("API", "/model/info", "OK")
 
-    return metadata
+    return _etat["metadata"]
+
+
+# ============================================================
+# État global — environnement interactif (physique réelle)
+# L'env reste OUVERT entre les appels /interactif/step
+# pour que la gravité et la physique s'appliquent vraiment.
+# ============================================================
+_env_interactif: dict = {
+    "env"         : None,   # instance gym ouverte
+    "obs"         : None,   # observation courante float32[8]
+    "reward_cum"  : 0.0,    # récompense cumulée
+    "n_pas"       : 0,      # compteur de pas
+    "terminated"  : False,  # épisode terminé normalement
+    "truncated"   : False,  # épisode tronqué (limite de pas)
+    "seed"        : 0,      # graine de l'épisode courant
+}
+
+
+def ___INTERCTIF_START(): pass
+# ####################################################################
+# POST /interactif/start — démarrer un épisode interactif
+# ####################################################################
+@app.post("/interactif/start")
+def interactif_start(req: EpisodeRequest):
+    """
+    Ouvre un nouvel environnement LunarLander-v3 et retourne
+    l'observation initiale + la première frame RGB.
+    L'environnement reste ouvert — la physique (gravité, inertie)
+    est réelle à chaque pas via /interactif/step.
+    """
+    log.START_ACTION("API", "/interactif/start", f"seed={req.seed}")
+
+    # ----------------------------------------------------------
+    # Fermer l'épisode précédent si encore ouvert
+    # ----------------------------------------------------------
+    if _env_interactif["env"] is not None:
+        log.STEP(2, "fermeture env précédent")
+        _env_interactif["env"].close()
+        _env_interactif["env"] = None
+
+    # ----------------------------------------------------------
+    # Créer et réinitialiser l'environnement
+    # ----------------------------------------------------------
+    log.START_CALL_CONTROLLER_FUNCTION(
+        "API", "interactif_start", "gym.make LunarLander-v3"
+    )
+    env    = gym.make("LunarLander-v3", render_mode="rgb_array")
+    obs, _ = env.reset(seed=req.seed)
+    frame  = env.render()
+
+    # Stocker dans l'état global
+    _env_interactif["env"]       = env
+    _env_interactif["obs"]       = obs
+    _env_interactif["reward_cum"]= 0.0
+    _env_interactif["n_pas"]     = 0
+    _env_interactif["terminated"]= False
+    _env_interactif["truncated"] = False
+    _env_interactif["seed"]      = req.seed or 0
+
+    log.PARAMETER_VALUE("seed",            req.seed)
+    log.PARAMETER_VALUE("obs shape",       obs.shape)
+    log.FINISH_CALL_CONTROLLER_FUNCTION(
+        "API", "interactif_start", "env prêt"
+    )
+    log.FINISH_ACTION("API", "/interactif/start", "OK")
+
+    return {
+        "obs"        : [round(float(v), 5) for v in obs],
+        "frame_b64"  : _frame_vers_base64(frame),
+        "reward_cum" : 0.0,
+        "n_pas"      : 0,
+        "done"       : False,
+        "seed"       : req.seed,
+    }
+
+
+# ####################################################################
+# POST /interactif/step — exécuter un pas avec l'action du joueur
+# ####################################################################
+
+
+def ___INTERCTIF_STEP(): pass
+
+@app.post("/interactif/step")
+def interactif_step(req: StepRequest):
+    """
+    Applique l'action du joueur dans l'environnement ouvert.
+    La physique réelle (gravité, propulseurs, inertie) s'applique.
+    Retourne la nouvelle observation, frame RGB, récompense et done.
+    """
+    log.START_ACTION(
+        "API", "/interactif/step",
+        f"action={req.action} pas={_env_interactif['n_pas']}"
+    )
+
+    # ----------------------------------------------------------
+    # Vérifier que l'environnement est ouvert
+    # ----------------------------------------------------------
+    if _env_interactif["env"] is None:
+        log.LEVEL_4_ERROR("API", "aucun épisode interactif en cours")
+        raise HTTPException(
+            status_code = 400,
+            detail      = "Aucun épisode interactif en cours. "
+                          "Appeler /interactif/start d'abord."
+        )
+
+    if _env_interactif["terminated"] or _env_interactif["truncated"]:
+        log.LEVEL_5_WARNING("API", "épisode déjà terminé")
+        raise HTTPException(
+            status_code = 400,
+            detail      = "Épisode terminé. Appeler /interactif/start "
+                          "pour recommencer."
+        )
+
+    # Valider l'action
+    if req.action not in (0, 1, 2, 3):
+        raise HTTPException(
+            status_code = 422,
+            detail      = f"Action invalide : {req.action}. "
+                          f"Valeurs acceptées : 0 1 2 3"
+        )
+
+    # ----------------------------------------------------------
+    # Exécuter le pas dans l'environnement (physique réelle)
+    # ----------------------------------------------------------
+    log.START_CALL_MANAGER_FUNCTION(
+        "API", "env.step", f"action={req.action}"
+    )
+    env = _env_interactif["env"]
+
+    obs, reward, terminated, truncated, _ = env.step(req.action)
+    frame = env.render()
+
+    _env_interactif["obs"]        = obs
+    _env_interactif["reward_cum"] += float(reward)
+    _env_interactif["n_pas"]      += 1
+    _env_interactif["terminated"] = terminated
+    _env_interactif["truncated"]  = truncated
+
+    done = terminated or truncated
+
+    log.PARAMETER_VALUE(
+        "action", f"{req.action} {NOMS_ACTIONS[req.action]}"
+    )
+    log.PARAMETER_VALUE("reward",      round(float(reward), 3))
+    log.PARAMETER_VALUE("reward_cum",  round(_env_interactif["reward_cum"], 2))
+    log.PARAMETER_VALUE("terminated",  terminated)
+    log.PARAMETER_VALUE("truncated",   truncated)
+    log.FINISH_CALL_MANAGER_FUNCTION(
+        "API", "env.step", f"done={done}"
+    )
+
+    # Fermer l'env si épisode terminé
+    if done:
+        log.STEP(2, "épisode terminé — fermeture env")
+        env.close()
+        _env_interactif["env"] = None
+
+    log.FINISH_ACTION(
+        "API", "/interactif/step",
+        f"pas={_env_interactif['n_pas']} done={done}"
+    )
+
+    return {
+        "obs"        : [round(float(v), 5) for v in obs],
+        "frame_b64"  : _frame_vers_base64(frame),
+        "reward"     : round(float(reward), 3),
+        "reward_cum" : round(_env_interactif["reward_cum"], 2),
+        "n_pas"      : _env_interactif["n_pas"],
+        "done"       : done,
+        "success"    : _env_interactif["reward_cum"] >= 200.0,
+        "action_name": NOMS_ACTIONS[req.action],
+    }
+
+
+def ___INTERCTIF_RESET(): pass
+        
+# ####################################################################
+# POST /interactif/reset — réinitialiser l'épisode interactif
+# ####################################################################
+@app.post("/interactif/reset")
+def interactif_reset(req: EpisodeRequest):
+    """
+    Ferme l'épisode en cours et en démarre un nouveau.
+    Alias de /interactif/start — conservé pour clarté sémantique.
+    """
+    log.START_ACTION("API", "/interactif/reset", f"seed={req.seed}")
+    log.FINISH_ACTION("API", "/interactif/reset", "→ /interactif/start")
+    return interactif_start(req)
 
 
 # ============================================================
