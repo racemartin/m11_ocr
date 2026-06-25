@@ -376,33 +376,31 @@ def jouer_episode(req: EpisodeRequest):
 
         # Capturer la frame AVANT l'action
         if req.render:
-            log.START_CALL_ENTITY_FUNCTION("API", "render", f"frame {n_pas}")
+            # log.START_CALL_ENTITY_FUNCTION("API", "render", f"frame {n_pas}")
             frame = env.render()
             frames_b64.append(_frame_vers_base64(frame))
             frames_np.append(frame)                        # ← stockage numpy
-            log.FINISH_CALL_ENTITY_FUNCTION(
-                "API", "render", f"frame {n_pas} encodée"
-            )
+            # log.FINISH_CALL_ENTITY_FUNCTION( "API", "render", f"frame {n_pas} encodée" )
 
         # Prédiction déterministe
-        log.START_CALL_ENTITY_FUNCTION("API", "model.predict", f"pas {n_pas}")
+        # log.START_CALL_ENTITY_FUNCTION("API", "model.predict", f"pas {n_pas}")
         action, _                             = _etat["model"].predict(
                                                   obs, deterministic=True)
         action                                = int(action)
         obs, reward, terminated, truncated, _ = env.step(action)
 
-        log.PARAMETER_VALUE("action",     f"{action} {NOMS_ACTIONS[action]}")
-        log.PARAMETER_VALUE("reward",     round(float(reward), 3))
-        log.PARAMETER_VALUE("terminated", terminated)
-        log.FINISH_CALL_ENTITY_FUNCTION(
-            "API", "model.predict", f"action={action}"
-        )
+        # log.PARAMETER_VALUE("action",     f"{action} {NOMS_ACTIONS[action]}")
+        # log.PARAMETER_VALUE("reward",     round(float(reward), 3))
+        # log.PARAMETER_VALUE("terminated", terminated)
+        # log.FINISH_CALL_ENTITY_FUNCTION(  "API", "model.predict", f"action={action}" )
 
         reward_cumule  += float(reward)
         rewards_cumules.append(round(reward_cumule, 3))
         actions_list.append(action)
         obs_list.append([round(float(v), 5) for v in obs])
         n_pas += 1
+
+        log.PARAMETER_VALUE("reward action",     f"{n_pas} {reward_cumule} {action} {NOMS_ACTIONS[action]}")
 
     env.close()
 
@@ -691,7 +689,7 @@ def get_episode_video():
         }
     )
 
-def ___MODEL_INFO): pass
+def ___MODEL_INFO(): pass
     
 # ####################################################################
 # GET /model/info

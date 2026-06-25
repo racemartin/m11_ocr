@@ -1,0 +1,173 @@
+======================================================================
+ÉVALUATION PPO — 7 MODÈLES × 100 ÉPISODES
+======================================================================
+
+  ▶ best_ppo/best_model.zip
+    Récompense moyenne..: +178.55
+    Écart-type..........: 94.54
+    Épisodes réussis....: 67 / 100
+    Taux de succès......: 67.0 %
+    Critère ≥ 200.......: ✗ NON ATTEINT
+
+  ▶ mission_260623_101350_ppo_lunarlander_226_best.zip
+    Récompense moyenne..: +239.01
+    Écart-type..........: 51.32
+    Épisodes réussis....: 88 / 100
+    Taux de succès......: 88.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260623_101350_ppo_lunarlander_226.zip
+    Récompense moyenne..: +239.01
+    Écart-type..........: 51.32
+    Épisodes réussis....: 88 / 100
+    Taux de succès......: 88.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260623_005440_ppo_lunarlander_226_best.zip
+    Récompense moyenne..: +239.01
+    Écart-type..........: 51.32
+    Épisodes réussis....: 88 / 100
+    Taux de succès......: 88.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260623_005440_ppo_lunarlander_226.zip
+    Récompense moyenne..: +239.01
+    Écart-type..........: 51.32
+    Épisodes réussis....: 88 / 100
+    Taux de succès......: 88.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260622_214348_ppo_lunarlander_226_best.zip
+    Récompense moyenne..: +239.01
+    Écart-type..........: 51.32
+    Épisodes réussis....: 88 / 100
+    Taux de succès......: 88.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260622_214348_ppo_lunarlander_226.zip
+    Récompense moyenne..: +239.01
+    Écart-type..........: 51.32
+    Épisodes réussis....: 88 / 100
+    Taux de succès......: 88.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+----------------------------------------------------------------------
+  RÉCAPITULATIF PPO — classement par récompense moyenne
+----------------------------------------------------------------------
+  Modèle                                               Moy    Std  Succ   ≥200
+  ------------------------------------------------ ------- ------ ----- ------
+  mission_260623_101350_ppo_lunarlander_226_best    +239.0   51.3   88%      ✓
+  mission_260623_101350_ppo_lunarlander_226.zip     +239.0   51.3   88%      ✓
+  mission_260623_005440_ppo_lunarlander_226_best    +239.0   51.3   88%      ✓
+  mission_260623_005440_ppo_lunarlander_226.zip     +239.0   51.3   88%      ✓
+  mission_260622_214348_ppo_lunarlander_226_best    +239.0   51.3   88%      ✓
+  mission_260622_214348_ppo_lunarlander_226.zip     +239.0   51.3   88%      ✓
+  best_model.zip                                    +178.6   94.5   67%      ✗
+
+  🏆 Meilleur PPO...: mission_260623_101350_ppo_lunarlander_226_best.zip
+     Récompense.........: +239.01 ± 51.32
+
+======================================================================
+ÉVALUATION DQN — 10 MODÈLES × 100 ÉPISODES
+======================================================================
+
+  ▶ best_dqn/best_model.zip
+    Récompense moyenne..: +224.44
+    Écart-type..........: 35.89
+    Épisodes réussis....: 78 / 100
+    Taux de succès......: 78.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260623_101350_dqn_lunarlander_226_best.zip
+    Récompense moyenne..: +224.44
+    Écart-type..........: 35.89
+    Épisodes réussis....: 78 / 100
+    Taux de succès......: 78.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260623_101350_dqn_lunarlander_226.zip
+    Récompense moyenne..: +224.44
+    Écart-type..........: 35.89
+    Épisodes réussis....: 78 / 100
+    Taux de succès......: 78.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260623_101350_dqn_lunarlander_222.zip
+    Récompense moyenne..: +229.96
+    Écart-type..........: 31.61
+    Épisodes réussis....: 82 / 100
+    Taux de succès......: 82.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260623_005440_dqn_lunarlander_226_best.zip
+    Récompense moyenne..: +224.44
+    Écart-type..........: 35.89
+    Épisodes réussis....: 78 / 100
+    Taux de succès......: 78.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260623_005440_dqn_lunarlander_226.zip
+    Récompense moyenne..: +224.44
+    Écart-type..........: 35.89
+    Épisodes réussis....: 78 / 100
+    Taux de succès......: 78.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260623_005440_dqn_lunarlander_222.zip
+    Récompense moyenne..: +229.96
+    Écart-type..........: 31.61
+    Épisodes réussis....: 82 / 100
+    Taux de succès......: 82.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260622_214348_dqn_lunarlander_226_best.zip
+    Récompense moyenne..: +224.44
+    Écart-type..........: 35.89
+    Épisodes réussis....: 78 / 100
+    Taux de succès......: 78.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260622_214348_dqn_lunarlander_226.zip
+    Récompense moyenne..: +224.44
+    Écart-type..........: 35.89
+    Épisodes réussis....: 78 / 100
+    Taux de succès......: 78.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  ▶ mission_260622_214348_dqn_lunarlander_222.zip
+    Récompense moyenne..: +229.96
+    Écart-type..........: 31.61
+    Épisodes réussis....: 82 / 100
+    Taux de succès......: 82.0 %
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+----------------------------------------------------------------------
+  RÉCAPITULATIF DQN — classement par récompense moyenne
+----------------------------------------------------------------------
+  Modèle                                               Moy    Std  Succ   ≥200
+  ------------------------------------------------ ------- ------ ----- ------
+  mission_260623_101350_dqn_lunarlander_222.zip     +230.0   31.6   82%      ✓
+  mission_260623_005440_dqn_lunarlander_222.zip     +230.0   31.6   82%      ✓
+  mission_260622_214348_dqn_lunarlander_222.zip     +230.0   31.6   82%      ✓
+  best_model.zip                                    +224.4   35.9   78%      ✓
+  mission_260623_101350_dqn_lunarlander_226_best    +224.4   35.9   78%      ✓
+  mission_260623_101350_dqn_lunarlander_226.zip     +224.4   35.9   78%      ✓
+  mission_260623_005440_dqn_lunarlander_226_best    +224.4   35.9   78%      ✓
+  mission_260623_005440_dqn_lunarlander_226.zip     +224.4   35.9   78%      ✓
+  mission_260622_214348_dqn_lunarlander_226_best    +224.4   35.9   78%      ✓
+  mission_260622_214348_dqn_lunarlander_226.zip     +224.4   35.9   78%      ✓
+
+  🏆 Meilleur DQN...: mission_260623_101350_dqn_lunarlander_222.zip
+     Récompense.........: +229.96 ± 31.61
+
+======================================================================
+COMPARAISON FINALE — MEILLEUR PPO vs MEILLEUR DQN
+======================================================================
+
+  PPO — mission_260623_101350_ppo_lunarlander_226_best.zip
+    Récompense moyenne..: +239.01 ± 51.32
+    Critère ≥ 200.......: ✓ VALIDÉ
+
+  DQN — mission_260623_101350_dqn_lunarlander_222.zip
+    Récompense moyenne..: +229.96 ± 31.61
+    Critère ≥ 200.......: ✓ VALIDÉ

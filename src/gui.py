@@ -397,7 +397,7 @@ with st.sidebar:
             # Afficher score du modèle sélectionné
             m = modele_selectionne
             if m['mean_reward']:
-                badge = "🟢" if m['critere_valide'] else "🔴"
+                badge = "🚀" if m['critere_valide'] else "🔴"
                 st.caption(
                     f"{badge} {m['algorithme']}  "
                     f"**{m['mean_reward']:+.1f} pts**"
@@ -499,7 +499,7 @@ if page == "GUI Épisode":
         # ── Une ligne par modèle ──────────────────────────────────
         for m in liste_modeles:
             score_txt = f"{m['mean_reward']:+.1f} pts" if m['mean_reward'] else "? pts"
-            badge     = "🟢" if m['critere_valide'] else "🔴"
+            badge     = "🚀" if m['critere_valide'] else "🔴"
             actif_txt = " ✦ actif" if m['actif'] else ""
             label_btn = (
                 f"{badge}  {m['algorithme']}  ·  {m['id']}"
@@ -540,7 +540,7 @@ if page == "GUI Épisode":
     score_act = health_r.get('mean_reward')
     algo_act  = health_r.get('algorithme', '?')
     critere   = health_r.get('critere_valide', False)
-    badge_act = "🟢" if critere else "🔴"
+    badge_act = "🚀" if critere else "🔴"
 
     col_modele, col_changer = st.columns([5, 1])
     with col_modele:
@@ -846,6 +846,7 @@ elif page == "Dashboard":
             if obs_all_flat:
                 altitudes = [o[1] for o in obs_all_flat]
                 act_flat  = [a for ep in historique for a in ep['actions']]
+
                 fig3, ax3 = plt.subplots(figsize=(5, 3.5))
                 fig3.patch.set_facecolor('none')
                 ax3.set_facecolor('none')

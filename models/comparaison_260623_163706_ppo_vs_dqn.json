@@ -1,0 +1,12 @@
+{
+  "date": "2026-06-23T16:37:06.232038",
+  "env_id": "LunarLander-v3",
+  "n_episodes": 100,
+  "seed": 42,
+  "PPO": {
+    "best_ppo/best_model.zip": {
+      "mean_reward": 178.55,
+      "std_reward": 94.54,
+      "n_succes": 67,
+      "taux_succes": 67.0,
+      "valide": 

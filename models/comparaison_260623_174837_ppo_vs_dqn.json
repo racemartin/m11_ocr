@@ -1,0 +1,146 @@
+{
+  "date": "2026-06-23T17:48:37.559818",
+  "env_id": "LunarLander-v3",
+  "n_episodes": 100,
+  "seed": 42,
+  "PPO": {
+    "best_ppo/best_model.zip": {
+      "mean_reward": 239.01,
+      "std_reward": 51.32,
+      "n_succes": 88,
+      "taux_succes": 88.0,
+      "valide": true,
+      "algo": "PPO"
+    },
+    "mission_260623_101350_ppo_lunarlander_226_best.zip": {
+      "mean_reward": 239.01,
+      "std_reward": 51.32,
+      "n_succes": 88,
+      "taux_succes": 88.0,
+      "valide": true,
+      "algo": "PPO"
+    },
+    "mission_260623_101350_ppo_lunarlander_226.zip": {
+      "mean_reward": 239.01,
+      "std_reward": 51.32,
+      "n_succes": 88,
+      "taux_succes": 88.0,
+      "valide": true,
+      "algo": "PPO"
+    },
+    "mission_260623_005440_ppo_lunarlander_226_best.zip": {
+      "mean_reward": 239.01,
+      "std_reward": 51.32,
+      "n_succes": 88,
+      "taux_succes": 88.0,
+      "valide": true,
+      "algo": "PPO"
+    },
+    "mission_260623_005440_ppo_lunarlander_226.zip": {
+      "mean_reward": 239.01,
+      "std_reward": 51.32,
+      "n_succes": 88,
+      "taux_succes": 88.0,
+      "valide": true,
+      "algo": "PPO"
+    },
+    "mission_260622_214348_ppo_lunarlander_226_best.zip": {
+      "mean_reward": 239.01,
+      "std_reward": 51.32,
+      "n_succes": 88,
+      "taux_succes": 88.0,
+      "valide": true,
+      "algo": "PPO"
+    },
+    "mission_260622_214348_ppo_lunarlander_226.zip": {
+      "mean_reward": 239.01,
+      "std_reward": 51.32,
+      "n_succes": 88,
+      "taux_succes": 88.0,
+      "valide": true,
+      "algo": "PPO"
+    }
+  },
+  "DQN": {
+    "best_dqn/best_model.zip": {
+      "mean_reward": 224.44,
+      "std_reward": 35.89,
+      "n_succes": 78,
+      "taux_succes": 78.0,
+      "valide": true,
+      "algo": "DQN"
+    },
+    "mission_260623_101350_dqn_lunarlander_226_best.zip": {
+      "mean_reward": 224.44,
+      "std_reward": 35.89,
+      "n_succes": 78,
+      "taux_succes": 78.0,
+      "valide": true,
+      "algo": "DQN"
+    },
+    "mission_260623_101350_dqn_lunarlander_226.zip": {
+      "mean_reward": 224.44,
+      "std_reward": 35.89,
+      "n_succes": 78,
+      "taux_succes": 78.0,
+      "valide": true,
+      "algo": "DQN"
+    },
+    "mission_260623_101350_dqn_lunarlander_222.zip": {
+      "mean_reward": 229.96,
+      "std_reward": 31.61,
+      "n_succes": 82,
+      "taux_succes": 82.0,
+      "valide": true,
+      "algo": "DQN"
+    },
+    "mission_260623_005440_dqn_lunarlander_226_best.zip": {
+      "mean_reward": 224.44,
+      "std_reward": 35.89,
+      "n_succes": 78,
+      "taux_succes": 78.0,
+      "valide": true,
+      "algo": "DQN"
+    },
+    "mission_260623_005440_dqn_lunarlander_226.zip": {
+      "mean_reward": 224.44,
+      "std_reward": 35.89,
+      "n_succes": 78,
+      "taux_succes": 78.0,
+      "valide": true,
+      "algo": "DQN"
+    },
+    "mission_260623_005440_dqn_lunarlander_222.zip": {
+      "mean_reward": 229.96,
+      "std_reward": 31.61,
+      "n_succes": 82,
+      "taux_succes": 82.0,
+      "valide": true,
+      "algo": "DQN"
+    },
+    "mission_260622_214348_dqn_lunarlander_226_best.zip": {
+      "mean_reward": 224.44,
+      "std_reward": 35.89,
+      "n_succes": 78,
+      "taux_succes": 78.0,
+      "valide": true,
+      "algo": "DQN"
+    },
+    "mission_260622_214348_dqn_lunarlander_226.zip": {
+      "mean_reward": 224.44,
+      "std_reward": 35.89,
+      "n_succes": 78,
+      "taux_succes": 78.0,
+      "valide": true,
+      "algo": "DQN"
+    },
+    "mission_260622_214348_dqn_lunarlander_222.zip": {
+      "mean_reward": 229.96,
+      "std_reward": 31.61,
+      "n_succes": 82,
+      "taux_succes": 82.0,
+      "valide": true,
+      "algo": "DQN"
+    }
+  }
+}
