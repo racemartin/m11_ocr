@@ -2,9 +2,10 @@
 .venv/
 
 # Modèles (trop lourds pour GitHub — utiliser Git LFS ou exclure)
+# Seuls les modèles finaux utilisés par l'API sont versionnés.
+# models/best_ppo/
+# models/best_dqn/
 models/*.zip
-models/best_ppo/
-models/best_dqn/
 
 # Logs TensorBoard
 logs/
