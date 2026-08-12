@@ -61,6 +61,9 @@ m11_ocr/
 │   ├── metrics.py          ← compute_stats, success_rate, moving_average
 │   └── viz_utils.py        ← plot_episode_metrics, animate_episode
 │
+├── tests/
+│   └── test_api.py         ← Tests automatisés des endpoints FastAPI
+│
 ├── models/
 │   ├── best_ppo/
 │   │   └── best_model.zip  ← Meilleur modèle PPO (EvalCallback)
@@ -95,6 +98,9 @@ cd m11_ocr
 
 ### 2. Créer l'environnement virtuel et installer les dépendances
 
+Toutes les dépendances — RL, API et GUI — sont déclarées dans
+`pyproject.toml`. Une seule commande suffit :
+
 ```bash
 uv sync
 ```
@@ -116,24 +122,20 @@ print('LunarLander-v3 : OK')
 "
 ```
 
-### 4. Installer les dépendances de déploiement
-
-```bash
-uv pip install fastapi uvicorn pillow requests streamlit imageio-ffmpeg
-```
-
 ---
 
 ## Lancement des services
 
 Les services sont indépendants — chaque terminal est dédié à un service.
-**Lancer dans cet ordre.**
+**Lancer dans cet ordre.** Tous les commandes utilisent `uv run` pour
+garantir l'exécution dans l'environnement virtuel du projet, sans
+dépendre d'une activation manuelle préalable.
 
 ### Terminal 1 — API FastAPI (backend RL)
 
 ```bash
 cd m11_ocr
-uvicorn src.api:app --host 0.0.0.0 --port 8000
+uv run uvicorn src.api:app --host 0.0.0.0 --port 8000
 ```
 
 Vérifie que l'API répond :
@@ -153,7 +155,7 @@ http://localhost:8000/docs
 
 ```bash
 cd m11_ocr
-streamlit run src/gui.py
+uv run streamlit run src/gui.py
 ```
 
 Accessible sur :
@@ -174,7 +176,7 @@ http://192.168.X.X:8000         # si accès depuis une autre machine
 
 ```bash
 cd m11_ocr
-tensorboard --logdir logs/ --host 0.0.0.0 --port 6006
+uv run tensorboard --logdir logs/ --host 0.0.0.0 --port 6006
 ```
 
 Accessible sur :
@@ -202,6 +204,49 @@ Accessible sur :
 ```
 http://localhost:8888/lab
 http://192.168.X.X:8888/lab    # accès réseau local
+```
+
+---
+
+## Validation rapide
+
+Cette section permet de vérifier de bout en bout le fonctionnement de
+l'API — modèle chargé, endpoints principaux, inférence état → action —
+sans passer par la GUI.
+
+### 1. Lancer les tests automatisés
+
+L'API n'a pas besoin d'être démarrée séparément : les tests utilisent
+`TestClient` de FastAPI, qui exécute l'application en mémoire.
+
+Installer d'abord les dépendances de test (groupe séparé) :
+
+```bash
+uv sync --group test
+```
+
+Puis lancer les tests :
+
+```bash
+uv run pytest tests/ -v
+```
+
+Les tests couvrent :
+
+| Test | Endpoint vérifié | Ce qui est validé |
+|------|-------------------|--------------------|
+| `test_health` | `GET /health` | Le service répond et le modèle est chargé |
+| `test_action` | `POST /action` | Un état `state[8]` renvoie une action valide (0–3) |
+| `test_episode` | `POST /episode` | Un épisode complet s'exécute et renvoie ses métriques |
+| `test_model_info` | `GET /model/info` | Les métadonnées du modèle actif sont accessibles |
+
+### 2. Vérification manuelle (alternative)
+
+```bash
+curl http://localhost:8000/health
+curl -X POST http://localhost:8000/action -H "Content-Type: application/json" -d '{"state": [0,0,0,0,0,0,0,0]}'
+curl -X POST http://localhost:8000/episode -H "Content-Type: application/json" -d '{}'
+curl http://localhost:8000/model/info
 ```
 
 ---
@@ -273,8 +318,7 @@ progressant des fondamentaux vers le Deep RL.
 - API Gymnasium moderne (`terminated or truncated`)
 
 ```bash
-# Lancer le notebook
-jupyter lab notebooks/Notebook_exercice_1.ipynb
+uv run jupyter lab notebooks/Notebook_exercice_1.ipynb
 ```
 
 ---
@@ -299,7 +343,7 @@ N_EPISODES   = 10_000   # épisodes d'entraînement
 ```
 
 ```bash
-jupyter lab notebooks/Notebook_exercice_2.ipynb
+uv run jupyter lab notebooks/Notebook_exercice_2.ipynb
 ```
 
 ---
@@ -330,7 +374,7 @@ Objectif    : ≥ 200 pts
 ```
 
 ```bash
-jupyter lab notebooks/Notebook_exercice_3.ipynb
+uv run jupyter lab notebooks/Notebook_exercice_3.ipynb
 ```
 
 ---
