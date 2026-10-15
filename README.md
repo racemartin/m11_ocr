@@ -51,10 +51,11 @@ m11_ocr/
 │           └── log_tool.py ← Journalisation RFC 5424
 │
 ├── notebooks/
-│   ├── Eagle1_Mission_LunarLander.ipynb   ← Mission principale
-│   ├── Notebook_exercice_1.ipynb          ← CartPole + politique aléatoire
-│   ├── Notebook_exercice_2.ipynb          ← FrozenLake + Q-Learning
-│   └── Notebook_exercice_3.ipynb          ← CartPole + DQN PyTorch + SB3
+│   ├── Notebook_mission_LunarLander_V3_livrable_corrige.ipynb ← Mission principale corrigée
+│   ├── Notebook_mission_LunarLander_V2.ipynb                  ← Mission principale initiale
+│   ├── Notebook_exercice_1.ipynb                              ← CartPole + politique aléatoire
+│   ├── Notebook_exercice_2.ipynb                              ← FrozenLake + Q-Learning
+│   └── Notebook_exercice_3.ipynb                              ← CartPole + DQN PyTorch + SB3
 │
 ├── core/
 │   ├── env_utils.py        ← make_env, inspect_env, run_n_random_episodes
@@ -73,6 +74,7 @@ m11_ocr/
 │
 ├── logs/                   ← Logs TensorBoard (train + eval)
 ├── docs/
+│   ├── formatage_donnees_et_streamlit.md ← Complément formatage + justification Streamlit
 │   └── images/
 │       ├── astrodynamics_logo.png
 │       └── LunarLander_V3_Environement.png
@@ -247,6 +249,37 @@ curl http://localhost:8000/health
 curl -X POST http://localhost:8000/action -H "Content-Type: application/json" -d '{"state": [0,0,0,0,0,0,0,0]}'
 curl -X POST http://localhost:8000/episode -H "Content-Type: application/json" -d '{}'
 curl http://localhost:8000/model/info
+```
+
+---
+
+## Compléments suite à la revue mentor
+
+La version corrigée du notebook principal est :
+
+```text
+notebooks/Notebook_mission_LunarLander_V3_livrable_corrige.ipynb
+```
+
+Elle ajoute une section dédiée :
+
+```text
+Étape 3 — Exposition des résultats : formatage des données, API FastAPI et dashboard Streamlit
+```
+
+Cette section documente explicitement :
+
+- l'ordre et le type des huit observations `LunarLander-v3` ;
+- la conversion de l'état JSON en `np.float32` avant l'appel au modèle ;
+- la représentation discrète des actions `{0, 1, 2, 3}` ;
+- la différence entre récompense instantanée et récompense cumulée ;
+- des exemples de requêtes et réponses JSON pour `/action` et `/episode` ;
+- la justification du choix de Streamlit pour visualiser les épisodes, interagir avec le dashboard et communiquer avec l'API FastAPI.
+
+Un document autonome reprend ces éléments ici :
+
+```text
+docs/formatage_donnees_et_streamlit.md
 ```
 
 ---
