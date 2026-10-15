@@ -253,7 +253,7 @@ curl http://localhost:8000/model/info
 
 ---
 
-## Compléments suite à la revue mentor
+## Compléments apres révision
 
 La version corrigée du notebook principal est :
 
